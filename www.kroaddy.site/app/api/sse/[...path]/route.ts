@@ -10,10 +10,11 @@ const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const path = params.path.join('/');
+    const { path: pathArray } = await params;
+    const path = pathArray.join('/');
     const url = `${GATEWAY_URL}/sse/${path}`;
     
     // Gateway SSE 연결
