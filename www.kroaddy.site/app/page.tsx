@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { Folder, Sparkles } from "lucide-react";
+import { Folder, Sparkles, Map } from "lucide-react";
 
 export default function Home() {
   const [isHovered, setIsHovered] = useState(false);
@@ -44,6 +44,15 @@ export default function Home() {
       >
         <Sparkles className="w-5 h-5" />
         <span>이미지 생성</span>
+      </Link>
+
+      {/* New Home 버튼 */}
+      <Link
+        href="/newhome"
+        className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white hover:shadow-xl transition-all duration-300 text-gray-900 font-medium hover:scale-105"
+      >
+        <Map className="w-5 h-5" />
+        <span>New Home</span>
       </Link>
 
       {/* 로고 */}

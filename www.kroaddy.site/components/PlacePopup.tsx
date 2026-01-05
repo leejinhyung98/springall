@@ -3,15 +3,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Info, MessageCircle, BookOpen, AlertTriangle, Star, DollarSign } from 'lucide-react';
-import { Location, LanguageCode } from '../lib/types';
+import { Location, LanguageCode, PlaceWithMenu } from '../lib/types';
 import { ImageWithFallback } from './ImageWithFallback';
 import { getCurrentLanguage, t } from '../lib/i18n';
 import { translateText, detectLanguage } from '../service/translateService';
+import { fetchPlacesWithPrices } from '../lib/crawlerApi';
 
 interface PlacePopupProps {
   place: Location;
   onClose: () => void;
 }
+
+type TabType = 'info' | 'phrases' | 'story' | 'tips' | 'reviews' | 'pricing';
 
 export function PlacePopup({ place, onClose }: PlacePopupProps) {
   const [uiLanguage, setUiLanguage] = useState<LanguageCode>(getCurrentLanguage());
@@ -19,6 +22,10 @@ export function PlacePopup({ place, onClose }: PlacePopupProps) {
   const [translatedCategory, setTranslatedCategory] = useState<string>(place.category || '');
   const [translatedAddress, setTranslatedAddress] = useState<string>(place.address || '');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('info');
+  const [priceInfo, setPriceInfo] = useState<PlaceWithMenu | null>(null);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   // 언어 변경 감지
   useEffect(() => {
@@ -94,13 +101,52 @@ export function PlacePopup({ place, onClose }: PlacePopupProps) {
   }, [place.name, place.category, place.address, uiLanguage]);
 
   const tabs = [
-    { icon: Info, labelKey: 'placepopup.tab.info', color: 'from-[#0088FF] to-[#0088FF]/80' },
-    { icon: MessageCircle, labelKey: 'placepopup.tab.phrases', color: 'from-[#FF383C] to-[#FF383C]/80' },
-    { icon: BookOpen, labelKey: 'placepopup.tab.story', color: 'from-[#0088FF] to-[#0088FF]/80' },
-    { icon: AlertTriangle, labelKey: 'placepopup.tab.tips', color: 'from-[#FF383C] to-[#FF383C]/80' },
-    { icon: Star, labelKey: 'placepopup.tab.reviews', color: 'from-[#0088FF] to-[#0088FF]/80' },
-    { icon: DollarSign, labelKey: 'placepopup.tab.pricing', color: 'from-[#FF383C] to-[#FF383C]/80' }
+    { id: 'info' as TabType, icon: Info, labelKey: 'placepopup.tab.info', color: 'from-[#0088FF] to-[#0088FF]/80' },
+    { id: 'phrases' as TabType, icon: MessageCircle, labelKey: 'placepopup.tab.phrases', color: 'from-[#FF383C] to-[#FF383C]/80' },
+    { id: 'story' as TabType, icon: BookOpen, labelKey: 'placepopup.tab.story', color: 'from-[#0088FF] to-[#0088FF]/80' },
+    { id: 'tips' as TabType, icon: AlertTriangle, labelKey: 'placepopup.tab.tips', color: 'from-[#FF383C] to-[#FF383C]/80' },
+    { id: 'reviews' as TabType, icon: Star, labelKey: 'placepopup.tab.reviews', color: 'from-[#0088FF] to-[#0088FF]/80' },
+    { id: 'pricing' as TabType, icon: DollarSign, labelKey: 'placepopup.tab.pricing', color: 'from-[#FF383C] to-[#FF383C]/80' }
   ];
+
+  // Pricing 탭 클릭 시 가격 정보 조회
+  const handleTabClick = async (tabId: TabType) => {
+    setActiveTab(tabId);
+
+    if (tabId === 'pricing') {
+      setIsLoadingPrice(true);
+      setPriceError(null);
+      setPriceInfo(null);
+
+      try {
+        // 주변 장소 조회 (500m 반경으로 좁게 설정하여 정확한 매칭)
+        const places = await fetchPlacesWithPrices(place.lat, place.lng, 500);
+
+        // 장소 이름과 좌표로 매칭 (이름이 정확히 일치하거나 포함되는 경우)
+        const matchedPlace = places.find(p => {
+          const nameMatch = p.name === place.name ||
+            p.name.includes(place.name) ||
+            place.name.includes(p.name);
+          // 좌표도 근접한지 확인 (약 100m 이내)
+          const distance = Math.sqrt(
+            Math.pow(p.lat - place.lat, 2) + Math.pow(p.lng - place.lng, 2)
+          );
+          return nameMatch && distance < 0.001; // 약 100m
+        });
+
+        if (matchedPlace) {
+          setPriceInfo(matchedPlace);
+        } else {
+          setPriceError('가격 정보를 찾을 수 없습니다.');
+        }
+      } catch (error) {
+        console.error('가격 정보 조회 실패:', error);
+        setPriceError('가격 정보를 불러오는 중 오류가 발생했습니다.');
+      } finally {
+        setIsLoadingPrice(false);
+      }
+    }
+  };
 
   return (
     <div className="w-full h-full bg-white flex flex-col shadow-xl relative overflow-hidden">
@@ -147,9 +193,12 @@ export function PlacePopup({ place, onClose }: PlacePopupProps) {
         {tabs.map((tab, index) => (
           <button
             key={index}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
+            onClick={() => handleTabClick(tab.id)}
+            className={`flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors group ${activeTab === tab.id ? 'bg-gray-100' : ''
+              }`}
           >
-            <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${tab.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+            <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${tab.color} flex items-center justify-center group-hover:scale-110 transition-transform ${activeTab === tab.id ? 'ring-2 ring-offset-2 ring-gray-400' : ''
+              }`}>
               <tab.icon className="w-6 h-6 text-white" />
             </div>
             <span className="text-xs text-gray-700">{t(tab.labelKey, uiLanguage)}</span>
@@ -158,38 +207,91 @@ export function PlacePopup({ place, onClose }: PlacePopupProps) {
       </div>
 
       {/* 컨텐츠 영역 */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-gray-900 mb-2">{t('placepopup.basicInformation', uiLanguage)}</h3>
-            <p className="text-sm text-gray-600">
-              {t('placepopup.basicInfoDescription', uiLanguage)}
-            </p>
+      <div className="flex-1 overflow-y-auto p-6 min-h-0">
+        {activeTab === 'pricing' ? (
+          // Pricing 탭 컨텐츠
+          <div className="space-y-4 h-full">
+            {isLoadingPrice ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-4"></div>
+                  <p className="text-sm text-gray-600">가격 정보를 불러오는 중...</p>
+                </div>
+              </div>
+            ) : priceError ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-red-600">{priceError}</p>
+              </div>
+            ) : priceInfo && priceInfo.menus.length > 0 ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">메뉴 및 가격</h3>
+                  <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto pr-2">
+                    {priceInfo.menus.map((menu, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <span className="text-sm font-medium text-gray-900 flex-1 break-words pr-2">
+                          {menu.name}
+                        </span>
+                        {menu.price ? (
+                          <span className="text-sm font-bold text-red-600 ml-4 whitespace-nowrap">
+                            {menu.price.toLocaleString()}원
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400 ml-4 whitespace-nowrap">가격 정보 없음</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs text-gray-500 text-center">
+                      총 {priceInfo.menu_count}개 메뉴
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-600">가격 정보가 없습니다.</p>
+              </div>
+            )}
           </div>
+        ) : (
+          // 기본 Info 탭 컨텐츠
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-gray-900 mb-2">{t('placepopup.basicInformation', uiLanguage)}</h3>
+              <p className="text-sm text-gray-600">
+                {t('placepopup.basicInfoDescription', uiLanguage)}
+              </p>
+            </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-gray-900 mb-2">{t('placepopup.operatingHours', uiLanguage)}</h3>
-            <p className="text-sm text-gray-600">{t('placepopup.operatingHoursValue', uiLanguage)}</p>
-          </div>
+            <div className="border-t pt-4">
+              <h3 className="text-gray-900 mb-2">{t('placepopup.operatingHours', uiLanguage)}</h3>
+              <p className="text-sm text-gray-600">{t('placepopup.operatingHoursValue', uiLanguage)}</p>
+            </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-gray-900 mb-2">{t('placepopup.admissionFee', uiLanguage)}</h3>
-            <p className="text-sm text-gray-600">{t('placepopup.admissionFeeValue', uiLanguage)}</p>
-          </div>
+            <div className="border-t pt-4">
+              <h3 className="text-gray-900 mb-2">{t('placepopup.admissionFee', uiLanguage)}</h3>
+              <p className="text-sm text-gray-600">{t('placepopup.admissionFeeValue', uiLanguage)}</p>
+            </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-gray-900 mb-2">{t('placepopup.address', uiLanguage)}</h3>
-            <p className="text-sm text-gray-600">{isTranslating ? (place.address || t('placepopup.addressValue', uiLanguage)) : (translatedAddress || t('placepopup.addressValue', uiLanguage))}</p>
-          </div>
+            <div className="border-t pt-4">
+              <h3 className="text-gray-900 mb-2">{t('placepopup.address', uiLanguage)}</h3>
+              <p className="text-sm text-gray-600">{isTranslating ? (place.address || t('placepopup.addressValue', uiLanguage)) : (translatedAddress || t('placepopup.addressValue', uiLanguage))}</p>
+            </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-gray-900 mb-2">{t('placepopup.recommendedRoute', uiLanguage)}</h3>
-            <ul className="text-sm text-gray-600 space-y-1">
-              <li>• {t('placepopup.recommendedRouteValue1', uiLanguage)}</li>
-              <li>• {t('placepopup.recommendedRouteValue2', uiLanguage)}</li>
-            </ul>
+            <div className="border-t pt-4">
+              <h3 className="text-gray-900 mb-2">{t('placepopup.recommendedRoute', uiLanguage)}</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• {t('placepopup.recommendedRouteValue1', uiLanguage)}</li>
+                <li>• {t('placepopup.recommendedRouteValue2', uiLanguage)}</li>
+              </ul>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -68,3 +68,22 @@ export interface TranslateResponse {
   sourceLang: LanguageCode;
   targetLang: LanguageCode;
 }
+
+// 크롤러 서비스에서 가져온 가격 정보 타입
+export interface Menu {
+  name: string;
+  price: number | null;
+}
+
+export interface PlaceWithMenu {
+  id: number;
+  kakao_place_id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  phone?: string;
+  category?: string;
+  menus: Menu[];
+  menu_count: number;
+}

@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createMarkerTooltipContent } from "./MarkerTooltip";
-import { Location, LanguageCode } from "../lib/types";
+import { Location, LanguageCode, PlaceWithMenu } from "../lib/types";
 import { keywordPlaceMap } from "../lib/keywordPlaces";
 import { searchContentId, fetchTourImages } from "../lib/tourApi";
 import { getCurrentLanguage, t } from "../lib/i18n";
+import { fetchPlacesWithPrices } from "../lib/crawlerApi";
 
 declare global {
   interface Window {
@@ -73,6 +74,13 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
   const routePolylineRef = useRef<any>(null);
   // 마커의 실제 위치 저장 (location.id -> 실제 좌표)
   const markerPositionsRef = useRef<Map<string, { lat: number; lng: number }>>(new Map());
+  // 가격 정보 마커 및 오버레이 저장
+  const priceMarkersRef = useRef<any[]>([]);
+  const priceOverlaysRef = useRef<any[]>([]);
+  // 가격 정보 표시 활성화 상태
+  const [showPriceInfo, setShowPriceInfo] = useState(true);
+  // 현재 지도 중심 좌표
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   // 현재 언어 상태
   const [currentLanguage, setCurrentLanguage] = useState<LanguageCode>(getCurrentLanguage());
@@ -296,6 +304,132 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
       }
     });
     searchMarkersRef.current = [];
+  };
+
+  // 가격 정보 마커 및 오버레이 제거
+  const clearPriceMarkers = () => {
+    priceMarkersRef.current.forEach((marker) => {
+      if (marker) marker.setMap(null);
+    });
+    priceMarkersRef.current = [];
+    
+    priceOverlaysRef.current.forEach((overlay) => {
+      if (overlay) overlay.setMap(null);
+    });
+    priceOverlaysRef.current = [];
+  };
+
+  // 가격 정보 오버레이 콘텐츠 생성
+  const createPriceOverlayContent = (place: PlaceWithMenu): string => {
+    const menuList = place.menus
+      .slice(0, 5) // 최대 5개만 표시
+      .map(
+        (menu) =>
+          `<div style="padding: 4px 0; border-bottom: 1px solid #eee; font-size: 12px;">
+            <span style="font-weight: 500; color: #333;">${menu.name}</span>
+            ${menu.price ? `<span style="color: #ff6b6b; margin-left: 8px; font-weight: bold;">${menu.price.toLocaleString()}원</span>` : '<span style="color: #999; margin-left: 8px;">가격 정보 없음</span>'}
+          </div>`
+      )
+      .join("");
+
+    return `
+      <div style="
+        background: white;
+        border: 2px solid #ff6b6b;
+        border-radius: 8px;
+        padding: 12px;
+        min-width: 200px;
+        max-width: 250px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      ">
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 6px; color: #333;">
+          ${place.name}
+        </div>
+        ${place.category ? `<div style="font-size: 11px; color: #666; margin-bottom: 6px;">${place.category}</div>` : ""}
+        <div style="max-height: 200px; overflow-y: auto; margin-top: 8px;">
+          ${menuList || "<div style='color: #999; font-size: 11px;'>메뉴 정보 없음</div>"}
+        </div>
+        ${place.menus.length > 5 ? `<div style="font-size: 11px; color: #999; margin-top: 4px;">외 ${place.menus.length - 5}개 메뉴</div>` : ""}
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 11px; color: #666;">
+          총 ${place.menu_count}개 메뉴
+        </div>
+      </div>
+    `;
+  };
+
+  // 가격 정보가 있는 장소를 지도에 표시
+  const displayPriceMarkers = async (map: any, lat: number, lng: number, radius: number = 1000) => {
+    if (!showPriceInfo) return;
+
+    // 기존 가격 정보 마커 제거
+    clearPriceMarkers();
+
+    try {
+      const places = await fetchPlacesWithPrices(lat, lng, radius);
+      
+      places.forEach((place) => {
+        if (place.menu_count === 0) return; // 메뉴가 없는 장소는 표시하지 않음
+
+        // 마커 위치
+        const markerPosition = new window.kakao.maps.LatLng(place.lat, place.lng);
+
+        // 가격 정보가 있는 장소는 빨간색 마커 사용
+        const markerImageSrc = '/img/marker-red.png';
+        const img = new Image();
+        img.onload = () => {
+          const displayHeight = 40;
+          const aspectRatio = img.width / img.height;
+          const displayWidth = displayHeight * aspectRatio;
+
+          const markerImageSize = new window.kakao.maps.Size(displayWidth, displayHeight);
+          const markerImageOption = {
+            offset: new window.kakao.maps.Point(displayWidth / 2, displayHeight)
+          };
+          const markerImage = new window.kakao.maps.MarkerImage(
+            markerImageSrc,
+            markerImageSize,
+            markerImageOption
+          );
+
+          // 마커 생성
+          const marker = new window.kakao.maps.Marker({
+            position: markerPosition,
+            image: markerImage,
+            map: map
+          });
+
+          // 가격 정보 오버레이 생성
+          const content = createPriceOverlayContent(place);
+          const overlay = new window.kakao.maps.CustomOverlay({
+            content: content,
+            position: markerPosition,
+            yAnchor: 2.2,
+            xAnchor: 0.5
+          });
+
+          // 마커 클릭 이벤트
+          window.kakao.maps.event.addListener(marker, "click", () => {
+            // 다른 오버레이 숨기기
+            priceOverlaysRef.current.forEach(ov => {
+              if (ov !== overlay) ov.setMap(null);
+            });
+            // 클릭한 오버레이 표시/숨김 토글
+            if (overlay.getMap()) {
+              overlay.setMap(null);
+            } else {
+              overlay.setMap(map);
+            }
+          });
+
+          priceMarkersRef.current.push(marker);
+          priceOverlaysRef.current.push(overlay);
+        };
+        img.src = markerImageSrc;
+      });
+    } catch (error) {
+      console.error("가격 정보 마커 표시 실패:", error);
+    }
   };
 
   // 현재 위치 마커 제거
@@ -885,6 +1019,30 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
 
         // 현재 위치 가져오기 및 지도에 표시
         setCurrentLocation(map);
+
+        // 지도 중심 변경 시 가격 정보 조회 (디바운싱 적용)
+        let centerChangeTimer: NodeJS.Timeout | null = null;
+        window.kakao.maps.event.addListener(map, "center_changed", () => {
+          if (centerChangeTimer) clearTimeout(centerChangeTimer);
+          centerChangeTimer = setTimeout(() => {
+            const center = map.getCenter();
+            const lat = center.getLat();
+            const lng = center.getLng();
+            setMapCenter({ lat, lng });
+            if (showPriceInfo) {
+              displayPriceMarkers(map, lat, lng, 1000);
+            }
+          }, 500); // 500ms 디바운싱
+        });
+
+        // 초기 가격 정보 조회
+        const initialCenter = map.getCenter();
+        const initialLat = initialCenter.getLat();
+        const initialLng = initialCenter.getLng();
+        setMapCenter({ lat: initialLat, lng: initialLng });
+        if (showPriceInfo) {
+          displayPriceMarkers(map, initialLat, initialLng, 1000);
+        }
 
         // 지도 클릭 이벤트
         window.kakao.maps.event.addListener(map, "click", function (mouseEvent: any) {
@@ -1656,6 +1814,28 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
     }
   }, [showStreetView]);
 
+  // 지도 중심 변경 시 가격 정보 조회
+  useEffect(() => {
+    if (!mapCenter || !mapRef.current || !showPriceInfo) return;
+
+    const timer = setTimeout(() => {
+      displayPriceMarkers(mapRef.current, mapCenter.lat, mapCenter.lng, 1000);
+    }, 500); // 디바운싱
+
+    return () => clearTimeout(timer);
+  }, [mapCenter, showPriceInfo]);
+
+  // 가격 정보 표시 토글 시 마커 업데이트
+  useEffect(() => {
+    if (!mapRef.current || !mapCenter) return;
+
+    if (showPriceInfo) {
+      displayPriceMarkers(mapRef.current, mapCenter.lat, mapCenter.lng, 1000);
+    } else {
+      clearPriceMarkers();
+    }
+  }, [showPriceInfo]);
+
   // 선택된 장소에 맞는 이미지 URL 가져오기 (매핑이 없으면 null 반환)
   const getPlaceImageUrl = (place: Location | null): string | null => {
     if (!place) return null;
@@ -1802,6 +1982,22 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
           {isRouteCheckActive ? t('map.routeCheckActive', currentLanguage) : t('map.checkRoute', currentLanguage)}
         </button>
       )}
+
+      {/* 가격 정보 표시 토글 버튼 */}
+      <button
+        onClick={() => setShowPriceInfo(!showPriceInfo)}
+        className={`absolute bottom-4 left-4 z-10 px-4 py-2 rounded-lg shadow-lg transition-colors font-medium text-sm ${
+          showPriceInfo
+            ? 'bg-red-500 text-white hover:bg-red-600'
+            : 'bg-gray-500 text-white hover:bg-gray-600'
+        }`}
+        style={{
+          bottom: isRouteCheckActive ? '120px' : '16px', // 경로 확인 버튼이 있으면 그 위에 배치
+          left: '16px',
+        }}
+      >
+        {showPriceInfo ? '가격 정보 숨기기' : '가격 정보 표시'}
+      </button>
     </div>
   );
 }
