@@ -22,5 +22,3 @@ export function AuthStoreProvider({ children }: AuthStoreProviderProps) {
         </AuthStoreContext.Provider>
     );
 }
-
-export type { AuthStoreProviderProps } from "./authStore";

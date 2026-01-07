@@ -6,7 +6,7 @@
  */
 
 import { create, useStore } from "zustand";
-import { createContext, useContext } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 // ============================================================================
 // Types
@@ -48,6 +48,14 @@ function createAuthStore() {
 type AuthStoreApi = ReturnType<typeof createAuthStore>;
 
 export const AuthStoreContext = createContext<AuthStoreApi | undefined>(undefined);
+
+// ============================================================================
+// Provider Props
+// ============================================================================
+
+export interface AuthStoreProviderProps {
+  children: ReactNode;
+}
 
 // ============================================================================
 // Hooks
