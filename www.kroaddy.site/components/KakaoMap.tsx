@@ -21,6 +21,7 @@ interface KakaoMapProps {
   resetKey?: number; // 초기화를 위한 키
   drawRouteKey?: number; // 경로를 그릴지 말지 제어하는 키
   onLocationUpdate?: (location: { lat: number; lng: number }) => void; // 현재 위치 업데이트 콜백
+  onMapDrag?: () => void; // 맵 드래그 이벤트 콜백
 }
 
 // 전역으로 onPlaceClick 저장 (이벤트 핸들러에서 접근하기 위해)
@@ -53,7 +54,7 @@ const getKakaoMapLang = (langCode: LanguageCode): string => {
 };
 
 
-export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceClick, resetKey = 0, drawRouteKey = 0, onLocationUpdate }: KakaoMapProps) {
+export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceClick, resetKey = 0, drawRouteKey = 0, onLocationUpdate, onMapDrag }: KakaoMapProps) {
   const mapRef = useRef<any>(null);
   const [mapKey, setMapKey] = useState(0); // 지도 재초기화를 위한 키
   const [scriptLoaded, setScriptLoaded] = useState(false); // Script 로드 상태
@@ -312,7 +313,7 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
       if (marker) marker.setMap(null);
     });
     priceMarkersRef.current = [];
-    
+
     priceOverlaysRef.current.forEach((overlay) => {
       if (overlay) overlay.setMap(null);
     });
@@ -367,15 +368,15 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
 
     try {
       const places = await fetchPlacesWithPrices(lat, lng, radius);
-      
+
       places.forEach((place) => {
         if (place.menu_count === 0) return; // 메뉴가 없는 장소는 표시하지 않음
 
         // 마커 위치
         const markerPosition = new window.kakao.maps.LatLng(place.lat, place.lng);
 
-        // 가격 정보가 있는 장소는 빨간색 마커 사용
-        const markerImageSrc = '/img/marker-red.png';
+        // 펭귄 캐릭터 마커 사용
+        const markerImageSrc = '/img/custom11.png';
         const img = new Image();
         img.onload = () => {
           const displayHeight = 40;
@@ -777,8 +778,8 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
             categoryName.includes('레스토랑') ||
             categoryName.includes('카페');
 
-          // 마커 이미지 선택 (음식점: 빨간색, 그 외: 파란색)
-          const markerImageSrc = isRestaurant ? '/img/marker-red.png' : '/img/marker-blue.png';
+          // 펭귄 캐릭터 마커 사용
+          const markerImageSrc = '/img/custom11.png';
 
           // 이미지 로드하여 원본 비율 계산 후 마커 생성 (스타일 효과 적용)
           const img = new Image();
@@ -1042,6 +1043,13 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
         setMapCenter({ lat: initialLat, lng: initialLng });
         if (showPriceInfo) {
           displayPriceMarkers(map, initialLat, initialLng, 1000);
+        }
+
+        // 지도 드래그 이벤트 (맵 스크롤 시 메뉴 닫기)
+        if (onMapDrag) {
+          window.kakao.maps.event.addListener(map, "dragstart", function () {
+            onMapDrag();
+          });
         }
 
         // 지도 클릭 이벤트
@@ -1926,8 +1934,8 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
                   onClick={handlePrevRoute}
                   disabled={!canGoPrev}
                   className={`px-4 py-3 rounded-lg shadow-lg transition-all font-medium text-sm flex items-center gap-2 ${canGoPrev
-                      ? 'bg-white/90 text-gray-900 hover:bg-white'
-                      : 'bg-gray-400/50 text-gray-500 cursor-not-allowed'
+                    ? 'bg-white/90 text-gray-900 hover:bg-white'
+                    : 'bg-gray-400/50 text-gray-500 cursor-not-allowed'
                     }`}
                 >
                   <span>◀</span>
@@ -1939,8 +1947,8 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
                   onClick={handleNextRoute}
                   disabled={!canGoNext}
                   className={`px-4 py-3 rounded-lg shadow-lg transition-all font-medium text-sm flex items-center gap-2 ${canGoNext
-                      ? 'bg-white/90 text-gray-900 hover:bg-white'
-                      : 'bg-gray-400/50 text-gray-500 cursor-not-allowed'
+                    ? 'bg-white/90 text-gray-900 hover:bg-white'
+                    : 'bg-gray-400/50 text-gray-500 cursor-not-allowed'
                     }`}
                 >
                   <span>다음</span>
@@ -1986,11 +1994,10 @@ export default function KakaoMapPage({ route = [], searchKeyword = '', onPlaceCl
       {/* 가격 정보 표시 토글 버튼 */}
       <button
         onClick={() => setShowPriceInfo(!showPriceInfo)}
-        className={`absolute bottom-4 left-4 z-10 px-4 py-2 rounded-lg shadow-lg transition-colors font-medium text-sm ${
-          showPriceInfo
-            ? 'bg-red-500 text-white hover:bg-red-600'
-            : 'bg-gray-500 text-white hover:bg-gray-600'
-        }`}
+        className={`absolute bottom-4 left-4 z-10 px-4 py-2 rounded-lg shadow-lg transition-colors font-medium text-sm ${showPriceInfo
+          ? 'bg-red-500 text-white hover:bg-red-600'
+          : 'bg-gray-500 text-white hover:bg-gray-600'
+          }`}
         style={{
           bottom: isRouteCheckActive ? '120px' : '16px', // 경로 확인 버튼이 있으면 그 위에 배치
           left: '16px',

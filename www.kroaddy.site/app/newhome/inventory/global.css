@@ -1,0 +1,16 @@
+@font-face {
+    font-family: "Jalnan2";
+    src: url("/fonts/Jalnan2TTF.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+.inventory-page {
+    /* route-level hook for future inventory-specific styles */
+}
+
+/* Inventory section headings – use custom Jalnan2 font */
+.inventory-heading {
+    font-family: "Jalnan2", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
