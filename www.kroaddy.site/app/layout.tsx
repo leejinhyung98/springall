@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthStoreProvider } from "@/store/AuthStoreProvider";
 
 export const metadata: Metadata = {
     title: "Kroaddy",
@@ -14,7 +15,9 @@ export default function RootLayout({
     return (
         <html lang="ko">
             <body className="antialiased">
-                {children}
+                <AuthStoreProvider>
+                    {children}
+                </AuthStoreProvider>
             </body>
         </html>
     );

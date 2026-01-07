@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Home, MessageSquare, MapPin, User, LogOut, Settings, FileText, Heart, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
-import { useAuthStore } from '@/store/authStore';
+import { useLogout } from '@/store/authStore';
 import { t, getCurrentLanguage } from '@/lib/i18n';
 import { LanguageCode } from '@/lib/types';
 
@@ -13,7 +13,7 @@ export default function MyPage() {
     const router = useRouter();
     const [activeMenu, setActiveMenu] = useState('mypage');
     const [activeRightMenu, setActiveRightMenu] = useState<string | null>(null);
-    const { logout } = useAuthStore();
+    const logout = useLogout();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [uiLanguage, setUiLanguage] = useState<LanguageCode>(getCurrentLanguage());
     const [isAuthenticated, setIsAuthenticated] = useState(false);
