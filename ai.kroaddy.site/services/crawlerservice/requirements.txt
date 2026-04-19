@@ -10,4 +10,7 @@ selenium
 playwright
 apscheduler==3.10.4
 geopy
+sqlalchemy
+psycopg2-binary
+python-dotenv
 

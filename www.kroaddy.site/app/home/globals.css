@@ -1,8 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Tailwind v3에서는 @custom-variant가 지원되지 않으므로 제거 */
+@import "tailwindcss";
 
 :root {
   --font-size: 16px;

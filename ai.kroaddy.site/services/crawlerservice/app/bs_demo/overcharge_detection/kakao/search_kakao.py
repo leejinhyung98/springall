@@ -7,6 +7,8 @@ import json
 import logging
 import time
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 from typing import List, Dict, Optional
 
 from selenium import webdriver
@@ -14,6 +16,38 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+# .env 파일 자동 로드 (프로젝트 루트에서 찾기)
+current_dir = Path(__file__).resolve()
+env_loaded = False
+
+# 최대 10단계까지 상위 디렉토리 탐색
+for i in range(10):
+    try:
+        env_file = current_dir.parents[i] / ".env"
+        if env_file.exists():
+            load_dotenv(env_file, override=False)
+            env_loaded = True
+            break
+    except IndexError:
+        break
+
+# 현재 작업 디렉토리에서도 시도
+if not env_loaded:
+    cwd_env = Path.cwd() / ".env"
+    if cwd_env.exists():
+        load_dotenv(cwd_env, override=False)
+        env_loaded = True
+
+# 프로젝트 루트 추정 (현재 파일에서 7단계 위: kroaddy_project_dacon_test/)
+if not env_loaded:
+    try:
+        project_root_env = current_dir.parents[7] / ".env"
+        if project_root_env.exists():
+            load_dotenv(project_root_env, override=False)
+            env_loaded = True
+    except IndexError:
+        pass
 
 logger = logging.getLogger(__name__)
 # uvicorn 기본 로거 설정에 종속되지만, 이 모듈 로그는 INFO 이상은 항상 보이도록 레벨을 명시
